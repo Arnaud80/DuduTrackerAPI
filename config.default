@@ -1,0 +1,17 @@
+//config.js
+
+const config = {
+ app: {
+   hostname: 'localhost',
+   port: 3000
+ },
+ db: {
+   hostname: 'localhost',
+   port: 5432,
+   user: 'postgresuser',
+   password: 'postgreslpassword',
+   database: 'postgresqldbname'
+ }
+};
+
+module.exports = config;
