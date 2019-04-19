@@ -47,6 +47,13 @@ var bodyParser = require("body-parser");
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// Allow all Origin
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
+});
+
+
 // PostgreSQL
 const {Client} = require("pg");
 const client = new Client({
@@ -223,17 +230,17 @@ myRouter.route('/players')
 		offset = req.query.offset; 
 	}
 	
-	var query = 'SELECT "PlayerID", "PlayerName" FROM "Players" ' + 'LIMIT ' + limit + 'OFFSET ' + offset + ';';
+	var query = 'SELECT "PlayerName" FROM "Players" ' + 'LIMIT ' + limit + 'OFFSET ' + offset + ';';
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("SQL error - " + errQ);
 			res.json({Error : "Select player error" + errQ});
 		} else {
 			if(resQ.rowCount > 0) {
-				res.json(resQ.rows);
+				res.json({results : resQ.rows});
 			} else
 			{
-				res.json({Error : "No players found"});
+				res.json({error : "No players found"});
 			}
 		}
 	})	
