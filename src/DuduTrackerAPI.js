@@ -137,11 +137,54 @@ myRouter.route('/')
    res.json({message : "Welcome on DuduTracker API", methode : req.method});
 });
 
-// Define hands route  
+myRouter.get('/playerHands/:playerName', function(req,res){
+    var limit = 1000;
+	var offset = 0;
+	
+	if(req.query.maxResultat) {
+		if(limit <=1000) {
+			limit = req.query.maxResultat;
+		};
+	}
+	
+	if(req.query.offset) {
+		offset = req.query.offset; 
+    }
+     
+    var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=\'' + req.params.playerName + '\' AND "Hand"<>\'     \'' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ + " : " + query);
+		} else {
+			if(resQ.rowCount > 0) {
+                res.json({results : resQ.rows, count: resQ.rowCount});
+			} else
+			{
+				res.json({Error : "No hands found for player " + req.params.playerName});
+			}
+		}
+	})
+});
+
 myRouter.route('/hands')
 // GET
 .get(function(req,res){ 
-	  res.json({message : "List all hands", methode : req.method});
+    /*var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=' + req.params.playerName + ";";
+    console.log(query);*/
+    res.json({Results: 'API Not implemented' + req});
+
+	/*client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ);
+		} else {
+			if(resQ.rowCount > 0) {
+				res.json({PlayerName : resQ.rows[0].PlayerName});
+			} else
+			{
+				res.json({Error : "No hands found for player " + req.params.playerName});
+			}
+		}
+	})*/
 })
 //POST
 .post(function(req,res){
@@ -230,7 +273,7 @@ myRouter.route('/players')
 		offset = req.query.offset; 
 	}
 	
-	var query = 'SELECT "PlayerName" FROM "Players" ' + 'LIMIT ' + limit + 'OFFSET ' + offset + ';';
+	var query = 'SELECT "PlayerName" FROM "Players" ' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("SQL error - " + errQ);
