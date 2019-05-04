@@ -253,7 +253,8 @@ myRouter.route('/players/gameIDs/:gameIDs')
 //GET
 .get(function(req,res){
 	var limit = 1000;
-	var offset = 0;
+    var offset = 0;
+    var strGameIDs = "";
 	
 	if(req.query.maxResultat) {
 		if(limit <=1000) {
@@ -265,8 +266,15 @@ myRouter.route('/players/gameIDs/:gameIDs')
 		offset = req.query.offset; 
 	}
     
+    gameIDs=req.params.gameIDs.split(',')
+
+    for(var i=0; i<gameIDs.length;i++) {
+        strGameIDs = strGameIDs + "\'" + gameIDs[i] + "\'";
+        if(i!=gameIDs.length-1) strGameIDs += ",";
+    }
+
     // SELECT "Players" FROM "Games" WHERE "GameID" IN('105553158104032', '106102884880960');
-    var query = 'SELECT "Players" FROM "Games" WHERE "GameID" IN(\'' + req.params.gameIDs + '\') LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    var query = 'SELECT "Players" FROM "Games" WHERE "GameID" IN(' + strGameIDs + ') LIMIT ' + limit + ' OFFSET ' + offset + ';';
     console.log(query)
 
 	client.query(query, (errQ, resQ) => {
