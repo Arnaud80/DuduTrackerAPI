@@ -1,34 +1,3 @@
-
-// Author : Arnaud DUHAMEL
-// Application name : DuDuTrakcerAPI
-// Version 0.1.0
-// Last Update : 24/02/2019
-
-
-// Release : 23/02/2019
-// Inititialisation de l'API
-// Mise en place des routes Hands et Players et de leur fonctions GET, POST, PUT et DELETE
-
-// Release : 24/02/2019
-// Mise en place de la connexion postgreSQL
-// Développement de la route GET player by ID
-// Développement de la route GET players avec gestion du nombre de résultat max et offset (Début des résultats)
-
-// Release : 05/03/2019
-// Développement de la route POST Game
-// Développement des function addPlayer, addGame et addHand
-
-// Release : 24/03/2019
-// Enregistrement des players et hands dans la fonction de callback de addGame
-
-
-// TODO :
-// Mise en place de l'authentification API
-// Développement du catch d'erreur connexion BDD interrompu par le serveur
-// Retravailler le nom des variables pour les rendre homogène dans leurs syntaxes
-//
-
-
 var express = require('express');
 var config = require('../config');
 
@@ -83,9 +52,11 @@ function addPlayer(name, callback) {
 	})
 }
 
-function addGame(gameID, gameType, TimeStamp, table_name, button_pos, nbPlayer, maxPlayer, flop, turn, river, callback) {
-	var query = 'INSERT INTO "Games" ("GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName") VALUES (' + gameID + ', \'' + TimeStamp + '\', ' + button_pos + ', ' + nbPlayer + ', ' + maxPlayer + ', \'' + flop + '\', \'' + turn + '\', \'' + river + '\', \'' + gameType + '\', \'' + table_name + '\');';
-	//console.log(query);
+function addGame(gameID, gameType, TimeStamp, table_name, button_pos, nbPlayer, maxPlayer, flop, turn, river, players, callback) {
+    var query = 'INSERT INTO "Games" ("GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName", "Players") VALUES (' + 
+                gameID + ', \'' + TimeStamp + '\', ' + button_pos + ', ' + nbPlayer + ', ' + maxPlayer + ', \'' + flop + '\', \'' + turn + '\', \'' + river + '\', \'' + gameType + '\', \'' + table_name + '\', \'' + players + '\');';
+    console.log(query);
+    
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("addGame() - SQL error - " + errQ);
@@ -137,7 +108,7 @@ myRouter.route('/')
    res.json({message : "Welcome on DuduTracker API", methode : req.method});
 });
 
-myRouter.get('/playerHands/:playerName', function(req,res){
+myRouter.get('/lastGame', function(req,res){
     var limit = 1000;
 	var offset = 0;
 	
@@ -150,8 +121,8 @@ myRouter.get('/playerHands/:playerName', function(req,res){
 	if(req.query.offset) {
 		offset = req.query.offset; 
     }
-     
-    var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=\'' + req.params.playerName + '\' AND "Hand"<>\'     \'' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    //SELECT "GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName" FROM "Games" ORDER BY "Date" DESC LIMIT 1;
+    var query = 'SELECT "GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName" FROM "Games" ORDER BY "Date" DESC LIMIT 1;';
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("SQL error - " + errQ + " : " + query);
@@ -187,12 +158,15 @@ myRouter.route('/hands')
 	})*/
 })
 //POST
+// Add hands
 .post(function(req,res){
     req.body.gameType=req.body.gameType.replace("\\","'");
     handPlayers=JSON.parse(req.body.handPlayers)
+    players=req.body.players.replace("[","{");
+    players=players.replace("]","}");
     
     // On insert en base le Game
-    addGame(req.body.game_num, req.body.gameType, req.body.TimeStamp, req.body.table_name, req.body.button_pos, req.body.nbPlayer, req.body.maxPlayer, req.body.flop, req.body.turn, req.body.river, function(result){
+    addGame(req.body.game_num, req.body.gameType, req.body.TimeStamp, req.body.table_name, req.body.button_pos, req.body.nbPlayer, req.body.maxPlayer, req.body.flop, req.body.turn, req.body.river, players, function(result){
     	// Si le Game n'existe pas on insert la partie, les joueurs et les mains associées
     	// On fait ça dans la fonction de callback afin d'assurer l'insertion des Hands et Player après le GameID
         if(result.rowCount) {
@@ -240,23 +214,76 @@ res.json({message : "Delete one hand", methode : req.method});
 });
 
 //Define players routes
-myRouter.route('/players/:player_id')
+// Goute to GET players begining by 
+myRouter.route('/players/:playerName')
 //GET
 .get(function(req,res){
-	var query = 'SELECT "PlayerName" FROM "Players" WHERE "PlayerID"=' + req.params.player_id + ";";
+	var limit = 1000;
+	var offset = 0;
+	
+	if(req.query.maxResultat) {
+		if(limit <=1000) {
+			limit = req.query.maxResultat;
+		};
+	}
+	
+	if(req.query.offset) {
+		offset = req.query.offset; 
+	}
+	
+    var query = 'SELECT "PlayerName" FROM "Players" WHERE "PlayerName" LIKE \'' + req.params.playerName + '%\' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    console.log(query)
+
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("SQL error - " + errQ);
+			res.json({Error : "Select player error" + errQ});
 		} else {
 			if(resQ.rowCount > 0) {
-				res.json({PlayerName : resQ.rows[0].PlayerName});
+				res.json({results : resQ.rows});
 			} else
 			{
-				res.json({Error : "Player not found "});
+				res.json({error : "No players found"});
 			}
 		}
-	})
+	})	
 })
+// Route to GET players of list of gameID 
+myRouter.route('/players/gameIDs/:gameIDs')
+//GET
+.get(function(req,res){
+	var limit = 1000;
+	var offset = 0;
+	
+	if(req.query.maxResultat) {
+		if(limit <=1000) {
+			limit = req.query.maxResultat;
+		};
+	}
+	
+	if(req.query.offset) {
+		offset = req.query.offset; 
+	}
+    
+    // SELECT "Players" FROM "Games" WHERE "GameID" IN('105553158104032', '106102884880960');
+    var query = 'SELECT "Players" FROM "Games" WHERE "GameID" IN(\'' + req.params.gameIDs + '\') LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    console.log(query)
+
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ);
+			res.json({Error : "Select player error" + errQ});
+		} else {
+			if(resQ.rowCount > 0) {
+				res.json({results : resQ.rows});
+			} else
+			{
+				res.json({error : "No players found"});
+			}
+		}
+	})	
+})
+// Define route to returns player list
 myRouter.route('/players')
 // GET
 .get(function(req,res){
