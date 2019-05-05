@@ -23,7 +23,7 @@ app.use(function(req, res, next) {
 });
 
 
-// PostgreSQL
+// PostgreSQL Initialization
 const {Client} = require("pg");
 const client = new Client({
 	host: config.db.hostname,
@@ -33,6 +33,9 @@ const client = new Client({
 	database : config.db.database
 });
 
+// Function addPlayer() to record new player in database
+// name: string - Name of the player to record
+// callback: The callback function used when the action is finish
 function addPlayer(name, callback) {
 	var query = 'INSERT INTO "Players" ("PlayerName") VALUES (\'' + name + '\');';
 	//console.log(query);
@@ -52,6 +55,9 @@ function addPlayer(name, callback) {
 	})
 }
 
+// Function addGame() to record new game in database
+// gameID : 
+// callback: The callback function used when the action is finish
 function addGame(gameID, gameType, TimeStamp, table_name, button_pos, nbPlayer, maxPlayer, flop, turn, river, players, callback) {
     var query = 'INSERT INTO "Games" ("GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName", "Players") VALUES (' + 
                 gameID + ', \'' + TimeStamp + '\', ' + button_pos + ', ' + nbPlayer + ', ' + maxPlayer + ', \'' + flop + '\', \'' + turn + '\', \'' + river + '\', \'' + gameType + '\', \'' + table_name + '\', \'' + players + '\');';
@@ -73,6 +79,9 @@ function addGame(gameID, gameType, TimeStamp, table_name, button_pos, nbPlayer, 
     })
 }
 
+// Function addHand() to record new hand in database
+// gameID : 
+// callback: The callback function used when the action is finish
 function addHand(GameID, PlayerID, Hand, callback) {
 	var query = 'INSERT INTO "Hands" ("GameID", "PlayerName", "Hand") VALUES (' + GameID + ', \'' + PlayerID + '\', \'' + Hand + '\');';
 	//console.log(query);
@@ -92,6 +101,7 @@ function addHand(GameID, PlayerID, Hand, callback) {
 	})
 }
 
+// Connexion to the postgreSQL Database
 client.connect((err) => {
 	if(err) {
 		console.error("PG Connexion error - ", err.stack);
@@ -100,22 +110,46 @@ client.connect((err) => {
 	}
 })
 
+
+/*
+    Definitions of all routes provided by the API server
+*/
+
 // Home
 myRouter.route('/')
 // Todo : Renvoyer vers une page Web documentant l'API DuduTracker
-// all answer all methods 
+// Answer all methods with the same message 
 .all(function(req,res){ 
    res.json({message : "Welcome on DuduTracker API", methode : req.method});
 });
 
-//Return players hands
+/*
+ Return players hands
+ URL definition : http://<server>:<port>/playerHands/<playerName>?limit=<maxRes>&offset=<offset>
+ limit=1000 by default
+ offset=0 by default 
+ Sample URL : http://localhost:8080/playerHands/Arnaud80200?limit=2&offset=0
+ Return a json formated like that :
+{
+    "results": [
+        {
+            "Hand": "Qh,9h"
+        },
+        ...
+        {
+            "Hand": "9d,8d"
+        }
+    ],
+    "count": 2
+}
+*/
 myRouter.get('/playerHands/:playerName', function(req,res){
     var limit = 1000;
 	var offset = 0;
 
-	if(req.query.maxResultat) {
+	if(req.query.limit) {
 		if(limit <=1000) {
-			limit = req.query.maxResultat;
+			limit = req.query.limit;
 		};
 	}
 
@@ -138,14 +172,46 @@ myRouter.get('/playerHands/:playerName', function(req,res){
 	})
 });
 
-// Return the last game
+/*
+ Return last game
+ URL definition : http://<server>:<port>/lastGame/<playerName>?limit=<maxRes>&offset=<offset>
+ limit=1000 by default
+ offset=0 by default 
+ Sample URL : http://localhost:8080/lastGame
+ Return a json formated like that :
+{
+    "results": [
+        {
+            "GameID": "105553159240192",
+            "Date": "2019-05-05T09:38:35.000Z",
+            "Button": 6,
+            "NumberOfPlayer": 6,
+            "TotalNumberOfPlayer": 6,
+            "Flop": "Ts,Tc,6c",
+            "Turn": "Js",
+            "River": "6h",
+            "GameType": "€2 EUR NL Texas Hold'em",
+            "TableName": "Saint-Denis ( Real Money )",
+            "Players": [
+                "xxfabluffxx",
+                "lauset",
+                "Xolare",
+                "Arnaud80200",
+                "SpineuRx",
+                "Erszebeth"
+            ]
+        }
+    ],
+    "count": 1
+}
+*/
 myRouter.get('/lastGame', function(req,res){
     var limit = 1000;
 	var offset = 0;
 	
-	if(req.query.maxResultat) {
+	if(req.query.limit) {
 		if(limit <=1000) {
-			limit = req.query.maxResultat;
+			limit = req.query.limit;
 		};
 	}
 	
@@ -169,27 +235,13 @@ myRouter.get('/lastGame', function(req,res){
 	})
 });
 
+
+// Defines routes for /hands
 myRouter.route('/hands')
 // GET
 .get(function(req,res){ 
-    /*var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=' + req.params.playerName + ";";
-    console.log(query);*/
-    res.json({Results: 'API Not implemented' + req});
-
-	/*client.query(query, (errQ, resQ) => {
-		if(errQ) {
-			console.log("SQL error - " + errQ);
-		} else {
-			if(resQ.rowCount > 0) {
-				res.json({PlayerName : resQ.rows[0].PlayerName});
-			} else
-			{
-				res.json({Error : "No hands found for player " + req.params.playerName});
-			}
-		}
-	})*/
+    res.json({results: 'API Not implemented' + req});
 })
-//POST
 // Add hands
 .post(function(req,res){
     req.body.gameType=req.body.gameType.replace("\\","'");
@@ -221,49 +273,56 @@ myRouter.route('/hands')
 })
 //PUT
 .put(function(req,res){ 
-      res.json({message : "Update one hand", methode : req.method});
+    res.json({results: 'API Not implemented' + req});
 })
 //DELETE
 .delete(function(req,res){ 
-res.json({message : "Delete one hand", methode : req.method});  
+    res.json({results: 'API Not implemented' + req});  
 })
-// POST
-//.post(function(req,res){ 
-//	  res.json({message : "POST player #" + req.params.player_id});
-	  /* INSERT INTO public."Players" (
-"PlayerName") VALUES (
-%(PlayerName)s::name)
- returning "PlayerID";
-	   */
-//})
-// PUT
-.put(function(req,res){ 
-	res.json({message : "PUT player #" + req.params.player_id});
-})
-// DELETE
-.delete(function(req,res){ 
-	res.json({message : "DELETE player #" + req.params.player_id});
-});
 
-//Define players routes
-// Goute to GET players begining by 
-myRouter.route('/players/:playerName')
+//Define /players routes
+/*
+ Return players
+ URL definition : http://<server>:<port>/players?beginby=Arn&limit=<maxRes>&offset=<offset>
+ limit=1000 by default
+ offset=0 by default 
+ Sample URL : http://localhost:8080/players?beginby=Arn&offset=0&limit=2
+ or http://localhost:8080/players for all players
+ Return a json formated like that :
+{
+    "results": [
+        {
+            "PlayerName": "Arnamiras"
+        },
+        {
+            "PlayerName": "Arnaque 2.0"
+        }
+    ],
+    "count": 2
+}
+*/
+myRouter.route('/players')
 //GET
 .get(function(req,res){
 	var limit = 1000;
-	var offset = 0;
+    var offset = 0;
+    var query = "";
+    
+    beginby = req.query.beginby
+    console.log(beginby)
 	
-	if(req.query.maxResultat) {
+	if(req.query.limit) {
 		if(limit <=1000) {
-			limit = req.query.maxResultat;
+			limit = req.query.limit;
 		};
 	}
 	
 	if(req.query.offset) {
 		offset = req.query.offset; 
 	}
-	
-    var query = 'SELECT "PlayerName" FROM "Players" WHERE "PlayerName" LIKE \'' + req.params.playerName + '%\' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    
+    if(beginby=="") query = 'SELECT "PlayerName" FROM "Players" ' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    else query = 'SELECT "PlayerName" FROM "Players" WHERE "PlayerName" LIKE \'' + beginby + '%\' LIMIT ' + limit + ' OFFSET ' + offset + ';';
     console.log(query)
 
 	client.query(query, (errQ, resQ) => {
@@ -272,7 +331,7 @@ myRouter.route('/players/:playerName')
 			res.json({Error : "Select player error" + errQ});
 		} else {
 			if(resQ.rowCount > 0) {
-				res.json({results : resQ.rows});
+				res.json({results : resQ.rows, count: resQ.rowCount});
 			} else
 			{
 				res.json({error : "No players found"});
@@ -280,6 +339,83 @@ myRouter.route('/players/:playerName')
 		}
 	})	
 })
+/*
+To get detail of one player
+RecordedHandsQty : 
+*/
+myRouter.route('/players/:playerName')
+//GET
+.get(function(req,res){
+	var limit = 1000;
+    var offset = 0;
+    var query = "";
+    
+    playerName = req.params.playerName
+	
+	if(req.query.limit) {
+		if(limit <=1000) {
+			limit = req.query.limit;
+		};
+	}
+	
+	if(req.query.offset) {
+		offset = req.query.offset; 
+	}
+    // SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"='Arnaud80200';
+    query = 'SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\';';
+    console.log(query)
+    
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ);
+			res.json({Error : "Select player error" + errQ});
+		} else {
+			if(resQ.rowCount > 0) {
+				res.json({results : resQ.rows, count: resQ.rowCount});
+			} else
+			{
+				res.json({error : "No players found"});
+			}
+		}
+	})	
+})
+
+/*
+ Return players of a list of game
+ URL definition : http://<server>:<port>/players/gameIDs/<gameID_list>?limit=<maxRes>&offset=<offset>
+ limit=1000 by default
+ offset=0 by default 
+ Sample URL : http://localhost:8080/players/gameIDs/106102884880960,105553159240192
+ Return a json formated like that :
+{
+    "results": [
+        {
+            "Players": [
+                "Arnaud80200",
+                "titof-95",
+                "INNPOKER",
+                "NICO6899",
+                "TITAN64",
+                "DarkHeaven59",
+                "ShaveMeImFamous",
+                "LAGreekFolle",
+                "pat213"
+            ]
+        },
+        {
+            "Players": [
+                "xxfabluffxx",
+                "lauset",
+                "Xolare",
+                "Arnaud80200",
+                "SpineuRx",
+                "Erszebeth"
+            ]
+        }
+    ],
+    "count": 2
+}
+*/
 // Route to GET players of list of gameID 
 myRouter.route('/players/gameIDs/:gameIDs')
 //GET
@@ -288,9 +424,9 @@ myRouter.route('/players/gameIDs/:gameIDs')
     var offset = 0;
     var strGameIDs = "";
 	
-	if(req.query.maxResultat) {
+	if(req.query.limit) {
 		if(limit <=1000) {
-			limit = req.query.maxResultat;
+			limit = req.query.limit;
 		};
 	}
 	
@@ -315,7 +451,7 @@ myRouter.route('/players/gameIDs/:gameIDs')
 			res.json({Error : "Select player error" + errQ});
 		} else {
 			if(resQ.rowCount > 0) {
-				res.json({results : resQ.rows});
+				res.json({results : resQ.rows, count: resQ.rowCount});
 			} else
 			{
 				res.json({error : "No players found"});
@@ -323,39 +459,10 @@ myRouter.route('/players/gameIDs/:gameIDs')
 		}
 	})	
 })
-// Define route to returns player list
-myRouter.route('/players')
-// GET
-.get(function(req,res){
-	var limit = 1000;
-	var offset = 0;
-	
-	if(req.query.maxResultat) {
-		if(limit <=1000) {
-			limit = req.query.maxResultat;
-		};
-	}
-	
-	if(req.query.offset) {
-		offset = req.query.offset; 
-	}
-	
-	var query = 'SELECT "PlayerName" FROM "Players" ' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
-	client.query(query, (errQ, resQ) => {
-		if(errQ) {
-			console.log("SQL error - " + errQ);
-			res.json({Error : "Select player error" + errQ});
-		} else {
-			if(resQ.rowCount > 0) {
-				res.json({results : resQ.rows});
-			} else
-			{
-				res.json({error : "No players found"});
-			}
-		}
-	})	
-})
-//POST
+
+/*
+To record new player
+*/
 .post(function(req,res){
 	addPlayer(req.body.name, function(result){
 			res.json(result);
@@ -363,11 +470,11 @@ myRouter.route('/players')
 })
 //PUT
 .put(function(req,res){ 
-      res.json({message : "Update one player", methode : req.method});
+    res.json({results: 'API Not implemented' + req});
 })
 //DELETE
 .delete(function(req,res){ 
-res.json({message : "Delete one player", methode : req.method});  
+    res.json({results: 'API Not implemented' + req});  
 }); 
 
 // Use our defined router
@@ -380,21 +487,15 @@ app.listen(port, hostname, function(){
 
 var http = require('http');
 
-// Chargement du fichier index.html affiché au client
-var server = http.createServer(function(req, res) {
-    /*fs.readFile('./index.html', 'utf-8', function(error, content) {
-        res.writeHead(200, {"Content-Type": "text/html"});
-        res.end(content);
-    });*/
-});
-
-// Chargement de socket.io
+// Création du server utilisé pour socket.io
+/*var server = http.createServer(function(req, res) {    
+});*/
+var server = http.createServer();
 var io = require('socket.io').listen(server);
 
-// Quand un client se connecte, on le note dans la console
+// Message of connexon to log the number of user in line
 io.sockets.on('connection', function (socket) {
     console.log('Un client est connecté !');
 });
 
 server.listen(8081);
-

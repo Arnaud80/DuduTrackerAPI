@@ -5,7 +5,10 @@ SELECT * FROM "Hands" WHERE "PlayerName"='A BanDerA';
 SELECT * FROM "Hands" WHERE "Hand" LIKE '%[%';
 SELECT * FROM "Hands" WHERE "Hand" LIKE '     ';
 SELECT * FROM "Hands" WHERE "GameID"='105828036256832';
-SELECT * FROM "Games" WHERE "GameID"='105828036256832';
+SELECT * FROM "Games" WHERE "GameID"='105553159240192';
+SELECT "GameID" FROM "Games" WHERE "Players";
+
+SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"='Arnaud80200';
 
 /*
 DELETE FROM "Hands" WHERE "Hand" LIKE '%[%';
