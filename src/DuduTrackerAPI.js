@@ -6,7 +6,7 @@ var hostname = config.app.hostname;
 var port = config.app.port;
 
 // Express app 
-var app = express(); 
+var app = express();
 
 // Route manager 
 var myRouter = express.Router(); 
@@ -70,7 +70,7 @@ function addGame(gameID, gameType, TimeStamp, table_name, button_pos, nbPlayer, 
 				callback(errQ);
 			}
 		}
-	})
+    })
 }
 
 function addHand(GameID, PlayerID, Hand, callback) {
@@ -108,6 +108,37 @@ myRouter.route('/')
    res.json({message : "Welcome on DuduTracker API", methode : req.method});
 });
 
+//Return players hands
+myRouter.get('/playerHands/:playerName', function(req,res){
+    var limit = 1000;
+	var offset = 0;
+
+	if(req.query.maxResultat) {
+		if(limit <=1000) {
+			limit = req.query.maxResultat;
+		};
+	}
+
+	if(req.query.offset) {
+		offset = req.query.offset; 
+    }
+
+    var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=\'' + req.params.playerName + '\' AND "Hand"<>\'     \'' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ + " : " + query);
+		} else {
+			if(resQ.rowCount > 0) {
+                res.json({results : resQ.rows, count: resQ.rowCount});
+			} else
+			{
+				res.json({Error : "No hands found for player " + req.params.playerName});
+			}
+		}
+	})
+});
+
+// Return the last game
 myRouter.get('/lastGame', function(req,res){
     var limit = 1000;
 	var offset = 0;
@@ -122,16 +153,17 @@ myRouter.get('/lastGame', function(req,res){
 		offset = req.query.offset; 
     }
     //SELECT "GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName" FROM "Games" ORDER BY "Date" DESC LIMIT 1;
-    var query = 'SELECT "GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName" FROM "Games" ORDER BY "Date" DESC LIMIT 1;';
+    var query = 'SELECT "GameID", "Date", "Button", "NumberOfPlayer", "TotalNumberOfPlayer", "Flop", "Turn", "River", "GameType", "TableName", "Players" FROM "Games" ORDER BY "Date" DESC LIMIT 1;';
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("SQL error - " + errQ + " : " + query);
 		} else {
 			if(resQ.rowCount > 0) {
+                //res.json({results : resQ.rows});
                 res.json({results : resQ.rows, count: resQ.rowCount});
 			} else
 			{
-				res.json({Error : "No hands found for player " + req.params.playerName});
+				res.json({Error : "No last game found"});
 			}
 		}
 	})
@@ -177,7 +209,7 @@ myRouter.route('/hands')
             		//
             	});
             	addHand(req.body.game_num, key, handPlayers[key], function(result){
-            		//
+            		io.emit('message', '');
             	});
             });
             res.json({success: "hand & players added for game " + req.body.game_num});
@@ -345,3 +377,24 @@ app.use(myRouter);
 app.listen(port, hostname, function(){
 	console.log("Server started on http://"+ hostname +":"+port); 
 });
+
+var http = require('http');
+
+// Chargement du fichier index.html affiché au client
+var server = http.createServer(function(req, res) {
+    /*fs.readFile('./index.html', 'utf-8', function(error, content) {
+        res.writeHead(200, {"Content-Type": "text/html"});
+        res.end(content);
+    });*/
+});
+
+// Chargement de socket.io
+var io = require('socket.io').listen(server);
+
+// Quand un client se connecte, on le note dans la console
+io.sockets.on('connection', function (socket) {
+    console.log('Un client est connecté !');
+});
+
+server.listen(8081);
+
