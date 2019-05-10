@@ -261,7 +261,8 @@ myRouter.route('/hands')
             		//
             	});
             	addHand(req.body.game_num, key, handPlayers[key], function(result){
-            		io.emit('message', '');
+                    console.log("send message")
+            		io.emit('newHand', result);
             	});
             });
             res.json({success: "hand & players added for game " + req.body.game_num});
@@ -361,8 +362,21 @@ myRouter.route('/players/:playerName')
 	if(req.query.offset) {
 		offset = req.query.offset; 
 	}
-    // SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"='Arnaud80200';
-    query = 'SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\';';
+	// OLD - SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"='Arnaud80200';
+
+	// SELECT a.countHands, "Hand" as "lastHand" FROM "Hands",
+	// (SELECT COUNT(*) as countHands FROM "Hands" WHERE "PlayerName"='Arnaud80200') AS a
+	// WHERE "PlayerName"='Arnaud80200' AND "GameID"='106652636478432';
+
+	// SELECT a.countHands, "Hand" as "lastHand" FROM "Hands",
+	// (SELECT COUNT(*) as countHands, MAX("HandID") AS maxGameID FROM "Hands" WHERE "PlayerName"='Arnaud80200') AS a
+	// WHERE "PlayerName"='Arnaud80200' AND "HandID"=a.maxGameID;
+	
+
+	//query = 'SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\';';
+	query = 'SELECT a.countHands, "Hand" AS "lastHand" FROM "Hands",' +
+			'(SELECT COUNT(*) AS countHands, MAX("HandID") AS maxGameID FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\') AS a ' +
+			'WHERE "PlayerName"=\'' + playerName + '\' AND "HandID"=a.maxGameID;'
     console.log(query)
     
 	client.query(query, (errQ, resQ) => {
