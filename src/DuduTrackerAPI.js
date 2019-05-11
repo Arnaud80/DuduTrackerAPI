@@ -124,6 +124,40 @@ myRouter.route('/')
 });
 
 /*
+To get detail of one game
+ : 
+*/
+myRouter.route('/games/:gameID')
+//GET
+.get(function(req,res){
+	var limit = 1000;
+	var offset = 0;
+
+	if(req.query.limit) {
+		if(limit <=1000) {
+			limit = req.query.limit;
+		};
+	}
+
+	if(req.query.offset) {
+		offset = req.query.offset; 
+    }
+
+    var query = 'SELECT * FROM "Games" WHERE "GameID"=\'' + req.params.gameID + '\' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ + " : " + query);
+		} else {
+			if(resQ.rowCount > 0) {
+                res.json({results : resQ.rows, count: resQ.rowCount});
+			} else
+			{
+				res.json({Error : "No game found for gameID " + req.params.gameID});
+			}
+		}
+	})
+});
+/*
  Return players hands
  URL definition : http://<server>:<port>/playerHands/<playerName>?limit=<maxRes>&offset=<offset>
  limit=1000 by default
@@ -235,12 +269,118 @@ myRouter.get('/lastGame', function(req,res){
 	})
 });
 
+/*
+ Return last game with stats of players
+ URL definition : 
+ limit=1000 by default
+ offset=0 by default 
+ Sample URL : http://localhost:8080/lastGameWithStats
+ Return a json formated like that :
+*/
+myRouter.get('/lastGameWithStats', function(req,res){
+    var limit = 1000;
+	var offset = 0;
+	
+	if(req.query.limit) {
+		if(limit <=1000) {
+			limit = req.query.limit;
+		};
+	}
+	
+	if(req.query.offset) {
+		offset = req.query.offset; 
+	}
+	
+	// SELECT A."PlayerName", "Hand", "Count" FROM 
+	//(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='105553169121056') AS A
+	// LEFT JOIN
+	//(SELECT "PlayerName", COUNT ("Hand") AS "Count" FROM "Hands"
+	// WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='105553169121056')
+	// GROUP BY "PlayerName") AS B
+	// ON A."PlayerName" = B."PlayerName"
+	// LEFT JOIN
+	// (SELECT "PlayerName", "Hand" FROM "Hands" WHERE "GameID"='105553169121056') AS C
+	// ON B."PlayerName" = C."PlayerName"
+	var query = 'SELECT A."PlayerName", "Hand", "Count" FROM ' +
+				'(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\''+req.query.gameID+'\') AS A ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT ("Hand") AS "Count" FROM "Hands" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\''+req.query.gameID+'\') ' +
+				'GROUP BY "PlayerName") AS B ' +
+				'ON A."PlayerName" = B."PlayerName" ' +
+				'LEFT JOIN ' + 
+				'(SELECT "PlayerName", "Hand" FROM "Hands" WHERE "GameID"=\''+req.query.gameID+'\') AS C ' +
+				'ON B."PlayerName" = C."PlayerName";'
+	console.log(query);
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ + " : " + query);
+		} else {
+			if(resQ.rowCount > 0) {
+                //res.json({results : resQ.rows});
+                res.json({results : resQ.rows, count: resQ.rowCount});
+			} else
+			{
+				res.json({Error : "No last game found"});
+			}
+		}
+	})
+});
+
 
 // Defines routes for /hands
 myRouter.route('/hands')
 // GET
 .get(function(req,res){ 
-    res.json({results: 'API Not implemented' + req});
+    var limit = 1000;
+	var offset = 0;
+	var query = '';
+	var gameID=req.query.gameID;
+	var playerName=req.query.playerName;
+	var where=0;
+
+	if(req.query.limit) {
+		if(limit <=1000) {
+			limit = req.query.limit;
+		};
+	}
+
+	if(req.query.offset) {
+		offset = req.query.offset; 
+    }
+
+	query='SELECT * FROM "Hands"';
+	if(gameID) {
+		query += ' WHERE "GameID"=\'' + gameID + '\'';
+		where++;
+	}
+
+	if(playerName) {
+		if(where==0) query += ' WHERE';
+		else query+= ' AND'
+
+		query += ' "PlayerName"=\'' + playerName + '\'';
+	}
+	
+	query += ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+	console.log(query);
+
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("SQL error - " + errQ + " : " + query);
+		} else {
+			if(resQ.rowCount > 0) {
+                res.json({results : resQ.rows, count: resQ.rowCount});
+			} else
+			{
+				if(gameID) {
+					res.json({Error : "No hand found for gameID=" + req.query.gameID + 'playerName=' + req.query.playerName});
+				} else {
+					res.json({Error : "No hand found for handID " + req.params.handID});
+				}
+			}
+		}
+	})
 })
 // Add hands
 .post(function(req,res){
@@ -262,9 +402,9 @@ myRouter.route('/hands')
             	});
             	addHand(req.body.game_num, key, handPlayers[key], function(result){
                     console.log("send message")
-            		io.emit('newHand', result);
             	});
-            });
+			});
+			io.emit('newGame', req.body.game_num);
             res.json({success: "hand & players added for game " + req.body.game_num});
         } else {
         	console.log("Game already exist")
@@ -373,10 +513,10 @@ myRouter.route('/players/:playerName')
 	// WHERE "PlayerName"='Arnaud80200' AND "HandID"=a.maxGameID;
 	
 
-	//query = 'SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\';';
-	query = 'SELECT a.countHands, "Hand" AS "lastHand" FROM "Hands",' +
+	query = 'SELECT COUNT(*) FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\';';
+	/*query = 'SELECT a.countHands, "Hand" AS "lastHand" FROM "Hands",' +
 			'(SELECT COUNT(*) AS countHands, MAX("HandID") AS maxGameID FROM "Hands" WHERE "PlayerName"=\'' + playerName + '\') AS a ' +
-			'WHERE "PlayerName"=\'' + playerName + '\' AND "HandID"=a.maxGameID;'
+			'WHERE "PlayerName"=\'' + playerName + '\' AND "HandID"=a.maxGameID;'*/
     console.log(query)
     
 	client.query(query, (errQ, resQ) => {
