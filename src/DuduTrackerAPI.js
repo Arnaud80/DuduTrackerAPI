@@ -82,9 +82,33 @@ function addGame(gameID, gameType, TimeStamp, table_name, button_pos, nbPlayer, 
 // Function addHand() to record new hand in database
 // gameID : 
 // callback: The callback function used when the action is finish
-function addHand(GameID, PlayerID, Hand, callback) {
-	var query = 'INSERT INTO "Hands" ("GameID", "PlayerName", "Hand") VALUES (' + GameID + ', \'' + PlayerID + '\', \'' + Hand + '\');';
-	//console.log(query);
+function addHand(GameID, PlayerName, Hand, callback) {
+	var query = 'INSERT INTO "Hands" ("GameID", "PlayerName", "Hand") ' +
+				'VALUES (' + GameID + ', \'' + PlayerName + '\', \'' + Hand + '\');';
+	console.log(query);
+	client.query(query, (errQ, resQ) => {
+		if(errQ) {
+			console.log("addHand() - SQL error - " + errQ);
+			callback(errQ);
+		} else {
+			if(resQ.rowCount > 0) {
+				callback(resQ);
+			} else
+			{
+				console.log("addHand() - Error - " + errQ);
+				callback(errQ);
+			}
+		}
+	})
+}
+
+// Function addActions() to record new hand in database
+// gameID : 
+// callback: The callback function used when the action is finish
+function addActions(GameID, ActionType, PlayerName, Action, Amount, callback) {
+	var query = 'INSERT INTO "' + ActionType + '" ("GameID", "PlayerName", "Action",  "Amount") ' +
+				'VALUES (' + GameID + ', \'' + PlayerName + '\', \'' + Action + '\', \'' + Amount + '\');';
+	console.log(query);
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("addHand() - SQL error - " + errQ);
@@ -109,7 +133,6 @@ client.connect((err) => {
 		console.log("PG connected");
 	}
 })
-
 
 /*
     Definitions of all routes provided by the API server
@@ -191,7 +214,7 @@ myRouter.get('/playerHands/:playerName', function(req,res){
 		offset = req.query.offset; 
     }
 
-    var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=\'' + req.params.playerName + '\' AND "Hand"<>\'     \'' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
+    var query = 'SELECT "Hand" FROM "Hands" WHERE "PlayerName"=\'' + req.params.playerName + '\' AND "Hand"<>\'bb,bb\'' + ' LIMIT ' + limit + ' OFFSET ' + offset + ';';
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
 			console.log("SQL error - " + errQ + " : " + query);
@@ -290,18 +313,74 @@ myRouter.get('/lastGameWithStats', function(req,res){
 	if(req.query.offset) {
 		offset = req.query.offset; 
 	}
-	
-	// SELECT A."PlayerName", "Hand", "Count" FROM 
-	//(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='105553169121056') AS A
-	// LEFT JOIN
-	//(SELECT "PlayerName", COUNT ("Hand") AS "Count" FROM "Hands"
-	// WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='105553169121056')
-	// GROUP BY "PlayerName") AS B
-	// ON A."PlayerName" = B."PlayerName"
-	// LEFT JOIN
-	// (SELECT "PlayerName", "Hand" FROM "Hands" WHERE "GameID"='105553169121056') AS C
-	// ON B."PlayerName" = C."PlayerName"
-	var query = 'SELECT A."PlayerName", "Hand", "Count" FROM ' +
+
+	/* SQL TEMPLATE
+	SELECT A."PlayerName", "Hand", "Count", D."VPIP", E."PFR", F."3BET", G."AFLOP", H."CFLOP", I."ATURN", J."CTURN", K."ARIVER", L."CRIVER" FROM 
+	(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3') AS A
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT ("Hand") AS "Count" FROM "Hands"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	GROUP BY "PlayerName") AS B
+	ON A."PlayerName" = B."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", "Hand" FROM "Hands" WHERE "GameID"='3') AS C
+	ON B."PlayerName" = C."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "VPIP" FROM "PreFlopActions" 
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='calls' OR "Action"='checks' OR "Action"='bets' OR "Action"='raises'  OR "Action"='all-In')
+	GROUP BY "PlayerName") AS D
+	ON C."PlayerName" = D."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "PFR" FROM "PreFlopActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='bets' OR "Action"='raises' OR "Action"='all-In')
+	GROUP BY "PlayerName") AS E
+	ON D."PlayerName" = E."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "3BET" FROM "PreFlopActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND "Action" LIKE '%-bets'
+	GROUP BY "PlayerName") AS F
+	ON E."PlayerName" = F."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "AFLOP" FROM "FlopActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='bets' OR "Action"='raises'  OR "Action"='all-In')
+	GROUP BY "PlayerName") AS G
+	ON F."PlayerName" = G."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "CFLOP" FROM "FlopActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='calls' OR "Action"='checks')
+	GROUP BY "PlayerName") AS H
+	ON G."PlayerName" = H."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "ATURN" FROM "TurnActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='bets' OR "Action"='raises'  OR "Action"='all-In')
+	GROUP BY "PlayerName") AS I
+	ON H."PlayerName" = I."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "CTURN" FROM "TurnActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='calls' OR "Action"='checks')
+	GROUP BY "PlayerName") AS J
+	ON I."PlayerName" = J."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "ARIVER" FROM "RiverActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='bets' OR "Action"='raises'  OR "Action"='all-In')
+	GROUP BY "PlayerName") AS K
+	ON J."PlayerName" = K."PlayerName"
+	LEFT JOIN
+	(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "CRIVER" FROM "RiverActions"
+	WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"='3')
+	AND ("Action"='calls' OR "Action"='checks')
+	GROUP BY "PlayerName") AS L
+	ON K."PlayerName" = L."PlayerName"
+	*/
+	var query = 'SELECT A."PlayerName", "Hand", "Count", D."VPIP", E."PFR", F."_3BET", G."AFLOP", H."CFLOP", I."ATURN", J."CTURN", K."ARIVER", L."CRIVER" FROM ' +
 				'(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\''+req.query.gameID+'\') AS A ' +
 				'LEFT JOIN ' +
 				'(SELECT "PlayerName", COUNT ("Hand") AS "Count" FROM "Hands" ' +
@@ -310,7 +389,59 @@ myRouter.get('/lastGameWithStats', function(req,res){
 				'ON A."PlayerName" = B."PlayerName" ' +
 				'LEFT JOIN ' + 
 				'(SELECT "PlayerName", "Hand" FROM "Hands" WHERE "GameID"=\''+req.query.gameID+'\') AS C ' +
-				'ON B."PlayerName" = C."PlayerName";'
+				'ON A."PlayerName" = C."PlayerName" ' +
+				'LEFT JOIN ' + 
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "VPIP" FROM "PreFlopActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\''+req.query.gameID+'\') ' +
+				'AND ("Action"=\'calls\'  OR "Action"=\'bets\' OR "Action"=\'raises\'  OR "Action"=\'all-In\') ' +
+				'GROUP BY "PlayerName") AS D ' +
+				'ON A."PlayerName" = D."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "PFR" FROM "PreFlopActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'AND ("Action"=\'bets\' OR "Action"=\'raises\' OR "Action"=\'all-In\') ' +
+				'GROUP BY "PlayerName") AS E ' +
+				'ON A."PlayerName" = E."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "_3BET" FROM "PreFlopActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'AND "Action" LIKE \'%-bets\' ' +
+				'GROUP BY "PlayerName") AS F ' +
+				'ON A."PlayerName" = F."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "AFLOP" FROM "FlopActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'AND ("Action" LIKE \'%bets\' OR "Action"=\'raises\'  OR "Action"=\'all-In\') ' +
+				'GROUP BY "PlayerName") AS G ' +
+				'ON A."PlayerName" = G."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "CFLOP" FROM "FlopActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'GROUP BY "PlayerName") AS H ' +
+				'ON A."PlayerName" = H."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "ATURN" FROM "TurnActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'AND ("Action" LIKE \'%bets\' OR "Action"=\'raises\'  OR "Action"=\'all-In\') ' +
+				'GROUP BY "PlayerName") AS I ' +
+				'ON A."PlayerName" = I."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "CTURN" FROM "TurnActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'GROUP BY "PlayerName") AS J ' +
+				'ON A."PlayerName" = J."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "ARIVER" FROM "RiverActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'AND ("Action" LIKE \'%bets\' OR "Action"=\'raises\'  OR "Action"=\'all-In\') ' +
+				'GROUP BY "PlayerName") AS K ' +
+				'ON A."PlayerName" = K."PlayerName" ' +
+				'LEFT JOIN ' +
+				'(SELECT "PlayerName", COUNT(DISTINCT "GameID") AS "CRIVER" FROM "RiverActions" ' +
+				'WHERE "PlayerName" IN(SELECT UNNEST("Players") AS "PlayerName" FROM "Games" WHERE "GameID"=\'' + req.query.gameID + '\') ' +
+				'GROUP BY "PlayerName") AS L ' +
+				'ON A."PlayerName" = L."PlayerName";'
+
 	console.log(query);
 	client.query(query, (errQ, resQ) => {
 		if(errQ) {
@@ -385,9 +516,15 @@ myRouter.route('/hands')
 // Add hands
 .post(function(req,res){
     req.body.gameType=req.body.gameType.replace("\\","'");
-    handPlayers=JSON.parse(req.body.handPlayers)
+	handPlayers=JSON.parse(req.body.handPlayers)
     players=req.body.players.replace("[","{");
-    players=players.replace("]","}");
+	players=players.replace("]","}");
+
+	preFlopActions=JSON.parse(req.body.preflop_actions);
+	flopActions=JSON.parse(req.body.flop_actions);
+	turnActions=JSON.parse(req.body.turn_actions);
+	riverActions=JSON.parse(req.body.river_actions);
+	winners=JSON.parse(req.body.winners);
     
     // On insert en base le Game
     addGame(req.body.game_num, req.body.gameType, req.body.TimeStamp, req.body.table_name, req.body.button_pos, req.body.nbPlayer, req.body.maxPlayer, req.body.flop, req.body.turn, req.body.river, players, function(result){
@@ -395,15 +532,34 @@ myRouter.route('/hands')
     	// On fait ça dans la fonction de callback afin d'assurer l'insertion des Hands et Player après le GameID
         if(result.rowCount) {
         	// On boucle sur chaque joueurs de la partie
-            Object.keys(handPlayers).forEach(function(key){
+            Object.values(JSON.parse(req.body.players)).forEach(function(key){
+				console.log(key)
             	// On insert en base chaque joueur
-            	addPlayer(key, function(result){
-            		//
-            	});
-            	addHand(req.body.game_num, key, handPlayers[key], function(result){
-                    console.log("send message")
-            	});
+				addPlayer(key, function(result){});
+				
+				if(handPlayers[key]==null) {
+					handPlayers[key]="bb,bb"
+				}
+				
+				addHand(req.body.game_num, key, handPlayers[key], function(result){});
 			});
+			// Add all preFlopActions
+			Object.values(preFlopActions).forEach(function(element){
+				addActions(req.body.game_num, "PreFlopActions", element["playerName"], element["action"], element["amount"], function(result){})
+			});
+			// Add all flopActions
+			Object.values(flopActions).forEach(function(element){
+				addActions(req.body.game_num, "FlopActions", element["playerName"], element["action"], element["amount"], function(result){})
+			});
+			// Add all turnActions
+			Object.values(turnActions).forEach(function(element){
+				addActions(req.body.game_num, "TurnActions", element["playerName"], element["action"], element["amount"], function(result){})
+			});
+			// Add all riverActions
+			Object.values(riverActions).forEach(function(element){
+				addActions(req.body.game_num, "RiverActions", element["playerName"], element["action"], element["amount"], function(result){})
+			});
+			console.log("send message")
 			io.emit('newGame', req.body.game_num);
             res.json({success: "hand & players added for game " + req.body.game_num});
         } else {
